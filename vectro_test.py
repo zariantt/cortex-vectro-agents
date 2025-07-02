@@ -12,6 +12,7 @@ import weaviate
 from sentence_transformers import SentenceTransformer
 from weaviate.connect import ConnectionParams, ProtocolParams
 from weaviate.classes.config import Configure, Property, DataType
+from weaviate.classes.query import MetadataQuery
 
 def get_vectro_url():
     if Path('.codexrc').exists():
@@ -122,11 +123,22 @@ def query_similarity():
     client = _client_from_url(VECTRO_URL)
     try:
         coll = client.collections.get(CLASS_NAME)
-        res = coll.query.near_vector(q_vec, limit=3, return_properties=["text"])
+        res = coll.query.near_vector(
+            q_vec,
+            limit=3,
+            return_properties=["text"],
+            return_metadata=MetadataQuery(distance=True, certainty=True, score=True),
+        )
         results = []
         for obj in res.objects:
+            # Print available fields for debugging
+            print("Object fields:", list(vars(obj).keys()))
+            if hasattr(obj, "metadata"):
+                print("Metadata fields:", list(vars(obj.metadata).keys()))
             results.append({
-                'distance': obj.distance,
+                'distance': getattr(obj.metadata, 'distance', None),
+                'certainty': getattr(obj.metadata, 'certainty', None),
+                'score': getattr(obj.metadata, 'score', None),
                 'text': obj.properties.get("text"),
             })
         RESULTS_FILE.write_text(json.dumps(results, indent=2))
