@@ -1,0 +1,12 @@
+trigger:
+  event: manual
+  inputs:
+    query: string
+
+steps:
+  - task: embed_query
+    file: vectro_test.py
+  - task: query_similarity
+    file: vectro_test.py
+  - task: emit_results
+    file: vectro_test.py

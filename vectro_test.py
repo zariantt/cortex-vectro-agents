@@ -24,6 +24,9 @@ VECTRO_URL = os.environ.get('VECTRO_URL', VECTRO_URL or 'http://localhost:8080')
 EMBED_MODEL = os.environ.get('EMBED_MODEL', 'all-MiniLM-L6-v2')
 CLASS_NAME = os.environ.get('CLASS_NAME', 'CortexNote')
 
+QUERY_FILE = Path('query.json')
+RESULTS_FILE = Path('results.json')
+
 
 def _log_telemetry(task: str, summary: str) -> None:
     path = Path('logs/telemetry.json')
@@ -89,23 +92,60 @@ def insert_vectors():
     client.close()
 
 
+def embed_query():
+    """Encode the input query and store the vector to QUERY_FILE."""
+    query = os.environ.get('INPUT_QUERY', os.environ.get('QUERY', ''))
+    if not query:
+        raise SystemExit('No query provided via INPUT_QUERY or QUERY')
+    model = SentenceTransformer(EMBED_MODEL)
+    vector = model.encode([query])[0].tolist()
+    QUERY_FILE.write_text(json.dumps({'query': query, 'vector': vector}))
+    print(f"Encoded query: {query}")
+
+
 def query_similarity():
+    """Run similarity search using vector from QUERY_FILE and store results."""
+    if not QUERY_FILE.exists():
+        raise SystemExit(f"{QUERY_FILE} not found. Run embed_query first.")
+    data = json.loads(QUERY_FILE.read_text())
+    q_vec = data.get('vector')
     client = _client_from_url(VECTRO_URL)
     coll = client.collections.get(CLASS_NAME)
-    model = SentenceTransformer(EMBED_MODEL)
-    query = "How can Cortex assist with code?"
-    q_vec = model.encode([query])[0]
-    res = coll.query.near_vector(q_vec.tolist(), limit=2, return_properties=["text"])
+    res = coll.query.near_vector(q_vec, limit=3, return_properties=["text"])
+    results = []
     for obj in res.objects:
-        text = obj.properties.get("text")
-        distance = obj.distance
-        print(f"{distance:.4f}: {text}")
+        results.append({
+            'distance': obj.distance,
+            'text': obj.properties.get("text"),
+        })
+    RESULTS_FILE.write_text(json.dumps(results, indent=2))
     client.close()
+
+
+def emit_results():
+    """Print the top 3 search results stored in RESULTS_FILE."""
+    if not RESULTS_FILE.exists():
+        raise SystemExit(f"{RESULTS_FILE} not found. Run query_similarity first.")
+    results = json.loads(RESULTS_FILE.read_text())
+    for item in results[:3]:
+        distance = item.get('distance')
+        text = item.get('text')
+        print(f"{distance:.4f}: {text}")
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--task", choices=["define_schema", "insert_vectors", "query_similarity"], required=True)
+    parser.add_argument(
+        "--task",
+        choices=[
+            "define_schema",
+            "insert_vectors",
+            "embed_query",
+            "query_similarity",
+            "emit_results",
+        ],
+        required=True,
+    )
     args = parser.parse_args()
 
     func = globals()[args.task]
