@@ -1,0 +1,15 @@
+yaml
+Copy
+Edit
+trigger:
+  event: manual
+
+steps:
+  - task: define_schema
+    file: vectro_test.py
+
+  - task: insert_vectors
+    file: vectro_test.py
+
+  - task: query_similarity
+    file: vectro_test.py
