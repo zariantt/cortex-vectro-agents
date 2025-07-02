@@ -1,0 +1,7 @@
+{
+  "id": "VectroAgent",
+  "type": "cortex.cnm.vector",
+  "schema": "CortexNote",
+  "tasks": ["define_schema", "insert_vectors", "query_similarity"],
+  "codex_compatible": true
+}
