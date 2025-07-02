@@ -123,23 +123,16 @@ def query_similarity():
     client = _client_from_url(VECTRO_URL)
     try:
         coll = client.collections.get(CLASS_NAME)
-        res = coll.query.near_vector(
-            q_vec,
-            limit=3,
-            return_properties=["text"],
-            return_metadata=MetadataQuery(distance=True, certainty=True, score=True),
-        )
+        res = coll.query.near_vector(q_vec, limit=3, return_properties=["text"])
         results = []
         for obj in res.objects:
-            # Print available fields for debugging
-            print("Object fields:", list(vars(obj).keys()))
-            if hasattr(obj, "metadata"):
-                print("Metadata fields:", list(vars(obj.metadata).keys()))
+            distance = obj.metadata.get("distance", None)
+            certainty = obj.metadata.get("certainty", None)
+            text = obj.properties.get("text")
             results.append({
-                'distance': getattr(obj.metadata, 'distance', None),
-                'certainty': getattr(obj.metadata, 'certainty', None),
-                'score': getattr(obj.metadata, 'score', None),
-                'text': obj.properties.get("text"),
+                'distance': distance,
+                'certainty': certainty,
+                'text': text,
             })
         RESULTS_FILE.write_text(json.dumps(results, indent=2))
     finally:
