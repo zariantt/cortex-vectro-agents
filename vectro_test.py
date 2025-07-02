@@ -2,6 +2,10 @@ import os
 from pathlib import Path
 from urllib.parse import urlparse
 import argparse
+import json
+from datetime import datetime
+import contextlib
+from io import StringIO
 
 import weaviate
 from sentence_transformers import SentenceTransformer
@@ -19,6 +23,25 @@ VECTRO_URL = os.environ.get('VECTRO_URL', VECTRO_URL or 'http://localhost:8080')
 
 EMBED_MODEL = os.environ.get('EMBED_MODEL', 'all-MiniLM-L6-v2')
 CLASS_NAME = os.environ.get('CLASS_NAME', 'CortexNote')
+
+
+def _log_telemetry(task: str, summary: str) -> None:
+    path = Path('logs/telemetry.json')
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        existing = json.loads(path.read_text()) if path.exists() else []
+        if not isinstance(existing, list):
+            existing = []
+    except Exception:
+        existing = []
+
+    entry = {
+        'task': task,
+        'timestamp': datetime.utcnow().isoformat() + 'Z',
+        'summary': summary.strip(),
+    }
+    existing.append(entry)
+    path.write_text(json.dumps(existing, indent=2))
 
 
 def _client_from_url(url: str) -> weaviate.WeaviateClient:
@@ -84,7 +107,14 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--task", choices=["define_schema", "insert_vectors", "query_similarity"], required=True)
     args = parser.parse_args()
-    globals()[args.task]()
+
+    func = globals()[args.task]
+    buffer = StringIO()
+    with contextlib.redirect_stdout(buffer):
+        func()
+    output = buffer.getvalue()
+    print(output, end="")
+    _log_telemetry(args.task, output)
 
 
 if __name__ == "__main__":
